@@ -43,25 +43,34 @@ class Thing(models.Model):
             'ancestors': ancestors,
             'pk': self.pk,
             'where':{
-                'parent': self.parent.pk,
+                'parent': self.parent.pk if self.parent else None,
                 'position': None if self.pos_implicit else '{};{}'.format(self.pos_x, self.pos_y),
                 'layer': self.pos_layer.name if self.pos_layer else None,
             },
             'what':{
                 'tag': self.tag_name,
-                'attrs': { x.attr.name : json.loads(x.value) for x in self.attributes }
+                'attrs': { x.attr.name : json.loads(x.value) for x in self.attributething_set.all() }
             },
         }
         return data
 
     def deserialize(self, dict, messages):
+        to_save = [self]
+        to_delete = []
+
         if 'where' in dict.keys():
 
             if 'parent' in dict['where'].keys():
                 # parent must refer to an existing thing, or it can be null
-                parent = Thing.objects.filter(pk=dict['where']['parent'])
-                if dict['where']['parent'] and not parent.exists():
-                    raise ValueError()
+                parent = None
+                if dict['where']['parent']:
+                    parent = Thing.objects.filter(pk=dict['where']['parent'])
+                    if dict['where']['parent'] and not parent.exists():
+                        raise ValueError()
+                    parent = parent.get()
+                    if parent.tag_name != 'zone':
+                        raise ValueError()
+
                 self.parent = parent
 
             if 'layer' in dict['where'].keys():
@@ -85,19 +94,29 @@ class Thing(models.Model):
 
             if 'attrs' in dict['what'].keys():
                 for k,v in dict['what']['attrs'].items():
-                    attr, created = Attr.objects.get_or_create(name=k)
+                    attr, created = Attribute.objects.get_or_create(name=k)
                     if created:
                         messages.info('Attribute `{}` was created'.format(k))
 
                     if v == None:
                         # remove key !
-                        AttributeThing.filter(attr=attr, thing=self).delete()
+                        try:
+                            at = AttributeThing.objects.get(attr=attr, thing=self)
+                            to_delete.append(at)
+                        except AttributeThing.DoesNotExist:
+                            pass
                     else:
-                        at = AttributeThing.get(attr=attr, thing=self)
+                        try:
+                            at = AttributeThing.objects.get(attr=attr, thing=self)
+                        except AttributeThing.DoesNotExist:
+                            at = AttributeThing(attr=attr, thing=self)
                         at.value = json.dumps(v)
-                        at.save()
+                        to_save.append(at)
 
-        self.save()
+        for x in to_save:
+            x.save()
+        for x in to_delete:
+            x.delete()
         return
 
     def subtree(self):
