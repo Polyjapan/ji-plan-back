@@ -1,0 +1,260 @@
+openapi: 3.0.0
+info:
+  title: ji-plan-back
+  version: '1.0'
+  description: Serves a tree-like structure of things you could see on a plan.
+servers:
+  - url: 'http://127.0.0.1:8000/plan'
+paths:
+  '/at/{pk}':
+    get:
+      summary: Get a thing
+      tags:
+        - endpoints
+      operationId: get-at
+      description: Return the thing identified by this pk
+      requestBody:
+        description: ''
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/return'
+    parameters:
+      - schema:
+          type: string
+        name: pk
+        in: path
+        required: true
+    put:
+      summary: Set a thing completely
+      operationId: put-at-pk
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/return'
+      description: |-
+        Reset the thing identified by this pk, with what is provided in the body
+        Every field must be present.
+        Return this thing as if you called GET on it.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/thing-as-submit'
+      tags:
+        - endpoints
+    patch:
+      summary: Set parts of a thing
+      operationId: patch-at-pk
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/return'
+      description: |-
+        Change some fields of the thing identified by this pk.
+        Only the fields that are present, will be modified with the given values.
+        Return this thing as if you called GET on it.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/thing-as-submit'
+        description: ''
+      tags:
+        - endpoints
+    delete:
+      summary: Delete a thing
+      operationId: delete-at-pk
+      responses:
+        '200':
+          description: OK
+      description: |-
+        Delete the thing identified by this pk.
+        Return nothing.
+      tags:
+        - endpoints
+  /create:
+    post:
+      summary: Create a thing
+      operationId: post-create
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/thing-as-return'
+      description: |-
+        Create a new thing.
+        Every field must be present.
+        Returns this thing as if you called GET on it.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/thing-as-submit'
+      tags:
+        - endpoints
+  '/at-and-inside/{pk}':
+    parameters:
+      - schema:
+          type: integer
+        name: pk
+        in: path
+        required: true
+        description: pk of the thing you wish to interact with
+    get:
+      summary: Get a thing and its children recursively
+      tags:
+        - endpoints
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/thing-as-return'
+      operationId: get-at-and-inside-pk
+      description: |-
+        Return a list containing :
+        * The thing identified by this pk
+        * Every thing whose parent is identified by this pk
+        * And their children, recursively.
+      requestBody: {}
+components:
+  schemas:
+    thing-as-submit:
+      title: Thing-as-submitted Schema
+      type: object
+      description: 'When you submit a thing with a PUT, PATCH or POST call, it will have to follow this format.'
+      properties:
+        where:
+          type: object
+          additionalProperties: false
+          properties:
+            parent:
+              type:
+                - integer
+                - 'null'
+              description: 'pk of direct parent in the tree. It must be the pk of an existing thing. If null, this thing will be detached.'
+            position:
+              type:
+                - string
+                - 'null'
+              example: 2;4 or 2.0;4.5
+              pattern: "\\d+(\\.?\\d+)?;\\d+(\\.?\\d+)?"
+              description: 'X-Y position of this thing relative to its parent. If null, this thing wil be implicitly positioned (e.g. because it does not matter so much).'
+            layer:
+              type:
+                - string
+                - 'null'
+              description: |-
+                Which layer this thing will be displayed with.
+                Null means this thing is always displayed.
+        what:
+          type: object
+          additionalProperties: false
+          properties:
+            tag:
+              type: string
+              enum:
+                - zone
+                - object
+              description: What type of thing this is? zone or object.
+            attrs:
+              type: object
+              description: "May contain any key. This is left to the frontend. \nAny null value means \"please remove this key\". Please use an empty string if you want to store a nothing."
+      x-tags:
+        - schemas
+    return:
+      title: Return Schema
+      type: object
+      description: 'Every call that yields a result (GET,PUT,PATCH,POST) will return this on a 200 OK response.'
+      properties:
+        return:
+          oneOf:
+            - $ref: '#/components/schemas/thing-as-return'
+            - type: array
+              items:
+                $ref: '#/components/schemas/thing-as-return'
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              tags:
+                type: string
+                enum:
+                  - debug
+                  - info
+                  - success
+                  - warning
+                  - error
+      x-tags:
+        - schemas
+    thing-as-return:
+      title: Thing-as-returned Schema
+      description: Every thing the server returns will follow this format.
+      type: object
+      x-examples:
+        example-1: {}
+      properties:
+        ancestors:
+          type: array
+          description: 'Gives pk of every ancestor of this thing in the tree, in a bottom-up order, not including this thing.'
+          items:
+            type: integer
+        pk:
+          type: integer
+          description: Primary key. Unique across all things. Identifies this thing.
+        where:
+          type: object
+          additionalProperties: false
+          properties:
+            parent:
+              type:
+                - integer
+                - 'null'
+              description: 'pk of direct parent in the tree. If null, this thing is detached.'
+            position:
+              type:
+                - string
+                - 'null'
+              example: 2;4 or 2.0;4.5
+              pattern: "\\d+(\\.?\\d+)?;\\d+(\\.?\\d+)?"
+              description: 'X-Y position of this thing relative to its parent. If null, this thing is implicitly positioned (e.g. because it does not matter so much).'
+            layer:
+              type:
+                - string
+                - 'null'
+              description: |-
+                Which layer this thing will be displayed with.
+                Null means this thing is always displayed.
+        what:
+          type: object
+          additionalProperties: false
+          properties:
+            tag:
+              type: string
+              enum:
+                - zone
+                - object
+              description: What type of thing this is? zone or object.
+            attrs:
+              type: object
+              description: 'May contain any key. This is left to the frontend. Notice that no value can be null, only empty string will do.'
+      x-tags:
+        - schemas
+  securitySchemes: {}
