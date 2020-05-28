@@ -17,6 +17,7 @@ class Msgs:
     def info(self, *args, **kwargs):
         messages.info(self.request, *args, **kwargs)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class AtView(View):
     http_method_names = ['get', 'put', 'patch', 'delete', 'options']
 
@@ -68,13 +69,13 @@ class AtView(View):
 
     def delete(self, request, pk):
         Thing.objects.filter(pk=pk).delete()
-        return JsonResponse()
+        return JsonResponse({})
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class CreateView(View):
     http_method_names = ['post', 'options']
 
-    @method_decorator(csrf_exempt, name='dispatch')
     def post(self, request):
         if request.headers['content-type'] != 'application/json':
             return HttpResponseBadRequest()
@@ -96,12 +97,12 @@ class CreateView(View):
                 'message': x.message,
                 'tags': x.tags,
             } for x in messages.get_messages(request)],
-        }, status_code=201)
+        }, status=201)
 
 
 class AtAndInsideView(View):
     http_method_names = ['get', 'options']
-    
+
     def get(self, request, pk):
         obj = get_object_or_404(Thing, pk=pk)
         return JsonResponse({
