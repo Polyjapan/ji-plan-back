@@ -25,7 +25,7 @@ SECRET_KEY = 'n$0wsyeareme!k4zvfimocbm@%1kwu3@$-4k#zz3f@a-$&&hp8'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'plan.japan-impact.ch']
 
 
 # Application definition
