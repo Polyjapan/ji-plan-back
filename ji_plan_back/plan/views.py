@@ -19,6 +19,7 @@ class Msgs:
 
 class AtView(View):
     http_method_names = ['get', 'put', 'patch', 'delete', 'options']
+
     def get(self, request, pk):
         obj = get_object_or_404(Thing, pk=pk)
         return JsonResponse({
@@ -70,9 +71,10 @@ class AtView(View):
         return JsonResponse()
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class CreateView(View):
     http_method_names = ['post', 'options']
+
+    @method_decorator(csrf_exempt, name='dispatch')
     def post(self, request):
         if request.headers['content-type'] != 'application/json':
             return HttpResponseBadRequest()
@@ -99,6 +101,7 @@ class CreateView(View):
 
 class AtAndInsideView(View):
     http_method_names = ['get', 'options']
+    
     def get(self, request, pk):
         obj = get_object_or_404(Thing, pk=pk)
         return JsonResponse({
