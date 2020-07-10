@@ -76,7 +76,7 @@ class Thing(models.Model):
             if 'layer' in dict['where'].keys():
                 layer = None
                 if dict['where']['layer']:
-                    layer, created = Layer.objects.filter(name=dict['where']['layer']).get_or_create()
+                    layer, created = Layer.objects.get_or_create(name=dict['where']['layer'])
                     if created:
                         messages.info('Layer `{}` was created'.format(dict['where']['layer']))
                 self.pos_layer = layer
