@@ -123,6 +123,7 @@ class Thing(models.Model):
         ret = [self]
         def recurse(root):
             children = list(Thing.objects.filter(parent__pk=root.pk))
+            nonlocal ret
             ret = ret + children
             for x in children:
                 recurse(x)
