@@ -11,6 +11,27 @@ class Layer(models.Model):
     name = models.CharField(max_length=64)
     # user permissions ?
 
+    def serialize(self):
+        data = {
+            'name': self.name,
+            'pk': self.pk,
+            'things': [thing.pk for thing in self.thing_set.all()]
+        }
+        return data
+
+    def deserialize(self):
+        to_save = [self]
+        to_delete = []
+
+        if 'name' in dict.keys():
+            self.name = dict['name']
+
+        for x in to_save:
+            x.save()
+        for x in to_delete:
+            x.delete()
+        return
+
 class Attribute(models.Model):
     name = models.CharField(max_length=64)
 
@@ -29,7 +50,7 @@ class Thing(models.Model):
     pos_implicit = models.BooleanField(default=True)
     pos_layer = models.ForeignKey('Layer', null=True, blank=True, on_delete=models.SET_NULL)
 
-    tag_name = models.CharField(max_length=16, choices = [('zone', 'Zone'), ('object', 'Object')])
+    tag_name = models.CharField(max_length=16, choices=[('plan', 'Plan'), ('zone', 'Zone'), ('object', 'Object')])
     attributes = models.ManyToManyField('Attribute', through='AttributeThing')
 
     def serialize(self):
@@ -42,14 +63,14 @@ class Thing(models.Model):
         data = {
             'ancestors': ancestors,
             'pk': self.pk,
-            'where':{
+            'where': {
                 'parent': self.parent.pk if self.parent else None,
-                'position': None if self.pos_implicit else '{};{}'.format(self.pos_x, self.pos_y),
-                'layer': self.pos_layer.name if self.pos_layer else None,
+                'position': None if self.pos_implicit else {'x': self.pos_x, 'y': self.pos_y},
+                'layer': self.pos_layer.pk if self.pos_layer else None,
             },
-            'what':{
+            'what': {
                 'tag': self.tag_name,
-                'attrs': { x.attr.name : json.loads(x.value) for x in self.attributething_set.all() }
+                'attrs': {x.attr.name: json.loads(x.value) for x in self.attributething_set.all()}
             },
         }
         return data
@@ -68,7 +89,7 @@ class Thing(models.Model):
                     if dict['where']['parent'] and not parent.exists():
                         raise ValueError()
                     parent = parent.get()
-                    if parent.tag_name != 'zone':
+                    if parent.tag_name not in ['zone', 'plan']:
                         raise ValueError()
 
                 self.parent = parent
@@ -76,29 +97,36 @@ class Thing(models.Model):
             if 'layer' in dict['where'].keys():
                 layer = None
                 if dict['where']['layer']:
-                    layer, created = Layer.objects.get_or_create(name=dict['where']['layer'])
-                    if created:
-                        messages.info('Layer `{}` was created'.format(dict['where']['layer']))
+                    try:
+                        layer = Layer.objects.get(pk=dict['where']['layer'])
+                    except Layer.DoesNotExist:
+                        messages.error('Layer {} does not exist'.format(dict['where']['layer']))
+                        raise ValueError()
+
                 self.pos_layer = layer
 
             if 'position' in dict['where'].keys():
-                str = dict['where']['position']
-                self.pos_x = str.split(';')[0] if str else None
-                self.pos_y = str.split(';')[1] if str else None
-                self.pos_implicit = (str == None)
+                pos = dict['where']['position']
+
+                self.pos_x = pos['x'] if pos else None
+                self.pos_y = pos['y'] if pos else None
+                self.pos_implicit = (pos is None)
 
         if 'what' in dict.keys():
 
             if 'tag' in dict['what'].keys():
+                if dict['what']['tag'] == 'plan' and self.parent is not None:
+                    raise ValueError()
+
                 self.tag_name = dict['what']['tag']
 
             if 'attrs' in dict['what'].keys():
-                for k,v in dict['what']['attrs'].items():
+                for k, v in dict['what']['attrs'].items():
                     attr, created = Attribute.objects.get_or_create(name=k)
                     if created:
                         messages.info('Attribute `{}` was created'.format(k))
 
-                    if v == None:
+                    if v is None:
                         # remove key !
                         try:
                             at = AttributeThing.objects.get(attr=attr, thing=self)
@@ -129,5 +157,3 @@ class Thing(models.Model):
                 recurse(x)
         recurse(self)
         return ret
-
-    # no unserialize(). this is handled by the POST view directly, as it is very specific.
