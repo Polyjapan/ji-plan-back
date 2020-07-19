@@ -39,11 +39,11 @@ class Msgs:
 class ThingView(View):
     http_method_names = ['get', 'put', 'patch', 'delete', 'options']
 
-    def get(self, request, pk):
-        obj = get_object_or_404(Thing, pk=pk)
+    def get(self, request, client_id):
+        obj = get_object_or_404(Thing, client_id=client_id)
         return JsonResponse(return_format([obj.serialize()], request))
 
-    def put(self, request, pk):
+    def put(self, request, client_id):
         if request.headers['content-type'] != 'application/json':
             return HttpResponseBadRequest()
 
@@ -56,7 +56,7 @@ class ThingView(View):
         if not set(['parent', 'position', 'layer']).issubset(dict['where'].keys()):
             return HttpResponseBadRequest()
 
-        obj = get_object_or_404(Thing, pk=pk)  # check object exists
+        obj = get_object_or_404(Thing, client_id=client_id)  # check object exists
         try:
             with transaction.atomic():
                 obj.attributething_set.all().delete()  # clear attributes before PUTting new ones
@@ -65,13 +65,13 @@ class ThingView(View):
             return HttpResponseBadRequest()
         return JsonResponse(return_format([obj.serialize()], request))
 
-    def patch(self, request, pk):
+    def patch(self, request, client_id):
         if request.headers['content-type'] != 'application/json':
             return HttpResponseBadRequest()
 
         dict = json.loads(request.body)
         # No completeness check - PATCH modifies objects partially
-        obj = get_object_or_404(Thing, pk=pk)
+        obj = get_object_or_404(Thing, client_id=client_id)
         try:
             with transaction.atomic():
                 obj.deserialize(dict, Msgs(request))
@@ -79,8 +79,8 @@ class ThingView(View):
             return HttpResponseBadRequest()
         return JsonResponse(return_format([obj.serialize()], request))
 
-    def delete(self, request, pk):
-        Thing.objects.filter(pk=pk).delete()
+    def delete(self, request, client_id):
+        Thing.objects.filter(client_id=client_id).delete()
         return JsonResponse(return_format([], request))
 
 
@@ -88,11 +88,11 @@ class ThingView(View):
 class LayerView(View):
     http_method_names = ['get', 'put' 'options']
 
-    def get(self, request, pk):
-        obj = get_object_or_404(Layer, pk=pk)
+    def get(self, request, client_id):
+        obj = get_object_or_404(Layer, client_id=client_id)
         return JsonResponse(return_format([obj.serialize()], request))
 
-    def put(self, request, pk):
+    def put(self, request, client_id):
         if request.headers['content-type'] != 'application/json':
             return HttpResponseBadRequest()
 
@@ -101,7 +101,7 @@ class LayerView(View):
         if 'name' not in dict.keys():
             return HttpResponseBadRequest()
 
-        obj = get_object_or_404(Layer, pk=pk)
+        obj = get_object_or_404(Layer, client_id=client_id)
         try:
             with transaction.atomic():
                 obj.deserialize(dict, Msgs(request))
@@ -114,8 +114,11 @@ class LayerView(View):
 class CreateThingView(View):
     http_method_names = ['post', 'options']
 
-    def post(self, request):
+    def post(self, request, client_id):
         if request.headers['content-type'] != 'application/json':
+            return HttpResponseBadRequest()
+
+        if Thing.objects.filter(client_id=client_id).exists():
             return HttpResponseBadRequest()
 
         dict = json.loads(request.body)
@@ -127,7 +130,7 @@ class CreateThingView(View):
         if not set(['parent', 'position', 'layer']).issubset(dict['where'].keys()):
             return HttpResponseBadRequest()
 
-        obj = Thing()
+        obj = Thing(client_id=client_id)
         try:
             with transaction.atomic():
                 obj.deserialize(dict, Msgs(request))
@@ -140,8 +143,11 @@ class CreateThingView(View):
 class CreateLayerView(View):
     http_method_names = ['post', 'options']
 
-    def post(self, request):
+    def post(self, request, client_id):
         if request.headers['content-type'] != 'application/json':
+            return HttpResponseBadRequest()
+
+        if Thing.objects.filter(client_id=client_id).exists():
             return HttpResponseBadRequest()
 
         dict = json.loads(request.body)
@@ -161,6 +167,6 @@ class CreateLayerView(View):
 class AtAndInsideThingView(View):
     http_method_names = ['get', 'options']
 
-    def get(self, request, pk):
-        obj = get_object_or_404(Thing, pk=pk)
+    def get(self, request, client_id):
+        obj = get_object_or_404(Thing, client_id=client_id)
         return JsonResponse(return_format([x.serialize() for x in obj.subtree()], request))

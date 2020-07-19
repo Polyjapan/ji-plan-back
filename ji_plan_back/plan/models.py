@@ -6,16 +6,18 @@ from jsonfield import JSONField
 
 import json
 
+
 # Create your models here.
 class Layer(models.Model):
     name = models.CharField(max_length=64)
+    client_id = models.UUIDField()
     # user permissions ?
 
     def serialize(self):
         data = {
             'name': self.name,
-            'pk': self.pk,
-            'things': [thing.pk for thing in self.thing_set.all()]
+            'client_id': self.client_id,
+            'things': [thing.client_id for thing in self.thing_set.all()]
         }
         return data
 
@@ -32,8 +34,10 @@ class Layer(models.Model):
             x.delete()
         return
 
+
 class Attribute(models.Model):
     name = models.CharField(max_length=64)
+
 
 class AttributeThing(models.Model):
     class Meta:
@@ -43,12 +47,14 @@ class AttributeThing(models.Model):
     thing = models.ForeignKey('Thing', on_delete=models.CASCADE)
     value = JSONField(null=True)
 
+
 class Thing(models.Model):
     parent = models.ForeignKey('Thing', null=True, blank=True, on_delete=models.CASCADE)
     pos_x = models.FloatField(null=True, blank=True)
     pos_y = models.FloatField(null=True, blank=True)
     pos_implicit = models.BooleanField(default=True)
     pos_layer = models.ForeignKey('Layer', null=True, blank=True, on_delete=models.SET_NULL)
+    client_id = models.UUIDField()
 
     tag_name = models.CharField(max_length=16, choices=[('plan', 'Plan'), ('zone', 'Zone'), ('object', 'Object')])
     attributes = models.ManyToManyField('Attribute', through='AttributeThing')
@@ -57,16 +63,16 @@ class Thing(models.Model):
         thing = self.parent
         ancestors = []
         while thing:
-            ancestors.append(thing.pk)
+            ancestors.append(thing.client_id)
             thing = thing.parent
 
         data = {
             'ancestors': ancestors,
-            'pk': self.pk,
+            'client_id': self.client_id,
             'where': {
-                'parent': self.parent.pk if self.parent else None,
+                'parent': self.parent.client_id if self.parent else None,
                 'position': None if self.pos_implicit else {'x': self.pos_x, 'y': self.pos_y},
-                'layer': self.pos_layer.pk if self.pos_layer else None,
+                'layer': self.pos_layer.client_id if self.pos_layer else None,
             },
             'what': {
                 'tag': self.tag_name,
@@ -85,7 +91,7 @@ class Thing(models.Model):
                 # parent must refer to an existing thing, or it can be null
                 parent = None
                 if dict['where']['parent']:
-                    parent = Thing.objects.filter(pk=dict['where']['parent'])
+                    parent = Thing.objects.filter(client_id=dict['where']['parent'])
                     if dict['where']['parent'] and not parent.exists():
                         raise ValueError()
                     parent = parent.get()
@@ -98,7 +104,7 @@ class Thing(models.Model):
                 layer = None
                 if dict['where']['layer']:
                     try:
-                        layer = Layer.objects.get(pk=dict['where']['layer'])
+                        layer = Layer.objects.get(client_id=dict['where']['layer'])
                     except Layer.DoesNotExist:
                         messages.error('Layer {} does not exist'.format(dict['where']['layer']))
                         raise ValueError()
@@ -149,11 +155,13 @@ class Thing(models.Model):
 
     def subtree(self):
         ret = [self]
+
         def recurse(root):
-            children = list(Thing.objects.filter(parent__pk=root.pk))
+            children = list(Thing.objects.filter(parent__client_id=root.client_id))
             nonlocal ret
             ret = ret + children
             for x in children:
                 recurse(x)
+
         recurse(self)
         return ret
